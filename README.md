@@ -4,6 +4,10 @@ Codes for papers "You Only Search Once: Single Shot Neural Architecture Search v
 > [You Only Search Once: Single Shot Neural Architecture Search via Direct Sparse Optimization](https://arxiv.org/abs/1811.01567)\
 > Xinbang zhang, Zehao Huang, Naiyan Wang.
 
+<div align="center">
+  <img src="docs/DSO-NAS.png" width="800px" />
+</div>
+
 ## Requirements
 ```
 python == 2.7 
