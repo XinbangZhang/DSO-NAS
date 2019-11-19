@@ -23,8 +23,7 @@ latency_gamma_list['lambda_after'] = nd.ones((1, 16))
 class APGNAG(SGD):
     """APG and NAG.
     """
-
-    def __init__(self, lambda_name=None, gamma=None, lambda_learning_rate=None, lambda_lr_scheduler=None, **kwargs):
+    def __init__(self, lambda_name=None, gamma=None, **kwargs):
         super(APGNAG, self).__init__(**kwargs)
         self.lambda_name = lambda_name
         self.gamma = gamma

@@ -9,6 +9,7 @@ from mxnet.module import Module
 from mxnet import metric
 from mxnet.model import BatchEndParam
 from symbol import get_symbol_dsonas_evaluation_symbol
+from symbol.dsonas_evaluation_symbol import pruning_useless_lambda_evaluation
 from collections import namedtuple
 import cPickle as pickle
 def _as_list(obj):
@@ -173,7 +174,6 @@ class Solver(object):
                         new_stucture[i] = 0
                         if structure(new_stucture) in self.latency_table.keys():
                             latency_list[i] = self.latency_table[structure(new_stucture)]
-                            # print 'structure exits:', structure(new_stucture)
                         else:
                             latency_test_count = latency_test_count + 1
                             lambda_strucutre = code2lambda(new_stucture)
@@ -200,95 +200,22 @@ class Solver(object):
                 self.module._optimizer.latency_gamma_list['lambda_after'][0, :] = gamma_list[point:]
                 print self.module._optimizer.latency_gamma_list
 
+
 def structure(code):
     num = ''
     for i in range(len(code)):
-        if code[i] == 0:
-            num += '0'
-        else:
-            num += '1'
+        num += '0' if code[i] == 0 else '1'
     return num
 
 
-def get_lambda_modify_structure_code(load_param = None, num_stages = 3, units = [], num_ops = 2):
-    lambda_need = {}
+def get_lambda_modify_structure_code(load_param = None, num_stages = 3, units = [], num_layers = 2):
     structure_code = np.zeros(0, dtype = int)
-    prune_thresold = 0.00
     num_operation = 4
 
-    for i in range(1, num_stages + 1):
-        for j in range(1, units[i - 1]):
-            if 'lambda_after_stage%d_unit%d_layer_1' % (i, j) not in load_param.keys():
-                if 'lambda_after_stage%d_unit%d' % (i, j) in load_param.keys():
-                    lambda_after = load_param['lambda_after_stage%d_unit%d' % (i, j)]
-                else:
-                    lambda_after = load_param['lambda_after']
-                for m in range(1, num_ops + 1):
-                    load_param['lambda_after_stage%d_unit%d_layer_%d' % (i, j, m)] = \
-                        lambda_after[:, (m - 1) * num_operation: m * num_operation]
-
-    for i in range(1, num_stages + 1):
-        for j in range(1, units[i - 1]):
-            for m in range(1, num_ops + 1):
-                if 'lambda_after_stage%d_unit%d_layer_%d' % (i, j, m) in load_param.keys():
-                    lambda_after = load_param['lambda_after_stage%d_unit%d_layer_%d' % (i, j, m)].asnumpy().reshape(-1)
-                else:
-                    lambda_after = load_param['lambda_after_layer_%d' % (m)].asnumpy().reshape(-1)
-                for n in range(1, num_operation + 1):
-                    # prune small lambda
-                    if lambda_after[n - 1] / 1. < prune_thresold:
-                        lambda_after[n - 1] = 0
-                    lambda_need['stage%d_unit%d_layer%d_op%d' % (i, j, m, n)] = lambda_after[n - 1]
-
-            for m in range(num_ops, 1, -1):
-                for mm in range(1, num_operation + 1):
-                    if 'lambda_stage%d_unit%d_layer_%d_%d' % (i, j, m, mm) in load_param.keys():
-                        lambdas = load_param['lambda_stage%d_unit%d_layer_%d_%d' % (i, j, m, mm)].asnumpy().reshape(-1)
-                    else:
-                        lambdas = load_param['lambda_layer_%d_%d' % (m, mm)].asnumpy().reshape(-1)
-                    if np.sum(lambdas) == 0:
-                        lambda_need['stage%d_unit%d_layer%d_op%d' % (i, j, m, mm)] = 0
-                    if lambda_need['stage%d_unit%d_layer%d_op%d' % (i, j, m, mm)] > 0:
-                        for n in range(1, lambdas.shape[0]):
-                            # prune small lambda
-                            if lambdas[n] / max(max(lambdas), 1e-9) < prune_thresold:
-                                lambdas[n] = 0
-                            lambda_need['stage%d_unit%d_layer%d_op%d' %
-                                        (i, j, int((n - 1) / num_operation) + 1, (n - 1) % num_operation + 1)] += \
-                            lambdas[n]
-
-            for m in range(1, num_ops + 1):
-                for n in range(1, num_operation + 1):
-                    if m > 1:
-                        if 'lambda_stage%d_unit%d_layer_%d_%d' % (i, j, m, n) in load_param.keys():
-                            lambdas = load_param['lambda_stage%d_unit%d_layer_%d_%d' % (i, j, m, n)].asnumpy().reshape(
-                                -1)
-                        else:
-                            lambdas = load_param['lambda_layer_%d_%d' % (m, n)].asnumpy().reshape(-1)
-                        if np.sum(lambdas) == 0:
-                            lambda_need['stage%d_unit%d_layer%d_op%d' % (i, j, m, n)] = 0
-
-                    if lambda_need['stage%d_unit%d_layer%d_op%d' % (i, j, m, n)] == 0:
-                        if 'lambda_after_stage%d_unit%d_layer_%d' % (i, j, m) in load_param.keys():
-                            load_param['lambda_after_stage%d_unit%d_layer_%d' % (i, j, m)][0, n - 1] = 0
-                        else:
-                            load_param['lambda_after'][0, m * num_operation + n - 1] = 0
-                        for mm in range(m + 1, num_ops + 1):
-                            for nn in range(1, num_operation + 1):
-                                if 'lambda_stage%d_unit%d_layer_%d_%d' % (i, j, mm, nn) in load_param.keys():
-                                    load_param['lambda_stage%d_unit%d_layer_%d_%d' % (i, j, mm, nn)][
-                                        0, (m - 1) * num_operation + n] = 0
-                                else:
-                                    load_param['lambda_layer_%d_%d' % (mm, nn)][0, (m - 1) * num_operation + n] = 0
-
-                        if m > 1:
-                            if 'lambda_stage%d_unit%d_layer_%d_%d' % (i, j, m, n) in load_param.keys():
-                                load_param['lambda_stage%d_unit%d_layer_%d_%d' % (i, j, m, n)][:] = 0
-                            else:
-                                load_param['lambda_layer_%d_%d' % (m, n)][:] = 0
+    load_param = pruning_useless_lambda_evaluation(load_param, num_stages=num_stages, units=units, num_layers=num_layers)
 
     if 'lambda_after' in load_param.keys():
-        for m in range(1, num_ops + 1):
+        for m in range(1, num_layers + 1):
             load_param['lambda_after'][:, (m - 1) * num_operation : m * num_operation] = \
                 load_param['lambda_after_stage%d_unit%d_layer_%d' % (1, 1, m)]
 

@@ -12,19 +12,6 @@ lambda_list = [0]
 for i in range(1, config.num_layers):
     lambda_list.append(lambda_list[-1] + (i * 4 + 1) * 4)
 
-mac_list = np.array([
-    [2 * 16 * 16 * 96 + 96 ^ 2, 2 * 16 * 16 * 96 + 96 ^ 2, 2 * 16 * 16 * 96 + 96 ^ 2, 0],
-    [2 * 16 * 16 * 96 + 96 * 9 + 2 * 16 * 16 * 96 + 96 ^ 2, 2 * 16 * 16 * 96 + 96 * 25 + 2 * 16 * 16 * 96 + 96 ^ 2,
-     2 * 16 * 16 * 96, 2 * 16 * 16 * 96],
-    [2 * 16 * 16 * 96 + 96 * 9 + 2 * 16 * 16 * 96 + 96 ^ 2, 2 * 16 * 16 * 96 + 96 * 25 + 2 * 16 * 16 * 96 + 96 ^ 2,
-     2 * 16 * 16 * 96, 2 * 16 * 16 * 96],
-    [2 * 16 * 16 * 96 + 96 * 9 + 2 * 16 * 16 * 96 + 96 ^ 2, 2 * 16 * 16 * 96 + 96 * 25 + 2 * 16 * 16 * 96 + 96 ^ 2,
-     2 * 16 * 16 * 96, 2 * 16 * 16 * 96],
-    [3 * 16 * 16 * 96 + 2 * 96 ^ 2, 3 * 16 * 16 * 96 + 2 * 96 ^ 2, 3 * 16 * 16 * 96 + 2 * 96 ^ 2, 0]
-], dtype=float)
-mac_list = mac_list / np.max(mac_list)
-
-
 @mx.optimizer.register
 class APGNAG(SGD):
     """APG and NAG.
@@ -47,11 +34,9 @@ class APGNAG(SGD):
                 self.op_end.append(lambda_list[i - 1] + lambda_len * (j + 1))
         self.flops_all = config.num_layers * num_operation + config.num_layers * num_operation / 2
         # MAC punishment for different lambda
-        self.gamma_lambda_after = 0.459
-        self.gamma_lambda_input = [0.98476221, 1., 0.48760937, 0.48760937]
+        self.gamma_lambda_after = 0.448
+        self.gamma_lambda_input = [0.986, 1., 0.447, 0.447]
 
-        # self.gamma_dict = [gamma] * 8
-        # self.gamma_dict = [self.gamma_dict for i in range(3)]
 
     def update(self, index, weight, grad, state):
         assert (isinstance(weight, NDArray))
@@ -76,14 +61,7 @@ class APGNAG(SGD):
                         else:
                             gamma = self.gamma_lambda_input[int(index[-1]) - 1] * self.gamma
                     else:
-                        gamma = self.gamma
-                    # if weight.shape[1] <= 2:
-                    #     gamma = mac_list[4, 1] * self.gamma
-                    # else:
-                    #     if 'after' in index:
-                    #         gamma = self.gamma_lambda_after * self.gamma
-                    #     else:
-                    #         gamma = self.gamma_lambda_input[int(index[-1]) - 1] * self.gamma
+                        gamma = self.gamma_input[int(index[-1]) - 1] * self.gamma
 
                     mom = state
                     mom[:] *= self.momentum
