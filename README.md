@@ -31,6 +31,12 @@ Step3:  go to config/cfgs, set dataset='cifar10', train_baseline=False,retrain_m
 ```
 python train.py
 ```
+
+| name | Test error |  Parameter  |
+|:-:|:-:|:-:|
+|DSO-NAS-share+cutout | 2.74 | 3.0M |
+|DSO-NAS-full+cutout | 2.83 | 3.0M |
+
 ## ImageNet Experiments:
 
 Please follow the instructions in https://mxnet.incubator.apache.org/ to make .rec file with the .lst file in  /data/imagenet and /data/imagenet_search
@@ -49,6 +55,10 @@ Step3:  go to config/cfgs, set dataset='imagenet_search', train_baseline=False,r
 ```
 python train.py
 ```
+| name | Test error (Top 1 / Top 5) |  Parameter  | Flops |
+|:-:|:-:|:-:|:-:|
+|DSO-NAS-share | 25.4 / 8.3 | 3.0M | 567M |
+|DSO-NAS-full | 25.7 / 8.1 | 3.0M | 608M |
 ## Bibtex
 ```
 @article{zhang2018you,
